@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
+import { configManager } from './config/ConfigManager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -38,15 +39,26 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC 处理器 - 基础框架
+// IPC 处理器 - 配置管理
 ipcMain.handle('get-config', async () => {
-  return {
-    obsidianPath: '',
-    deepseekApiKey: '',
-  };
+  return configManager.getConfig();
 });
 
 ipcMain.handle('set-config', async (event, config: any) => {
-  // TODO: 实现配置保存逻辑
-  console.log('Setting config:', config);
+  configManager.setConfig(config);
+  return { success: true };
+});
+
+// IPC 处理器 - 目录选择
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory'],
+    title: '选择 Obsidian 笔记目录'
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return '';
+  }
+
+  return result.filePaths[0];
 });
