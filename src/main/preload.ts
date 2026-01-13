@@ -9,7 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
   // 文件监听
-  watchDirectory: (path: string) => ipcRenderer.invoke('watch-directory', path),
+  watchDirectory: (path: string): Promise<{ success: boolean; watchPath: string }> =>
+    ipcRenderer.invoke('watch-directory', path),
   unwatchDirectory: () => ipcRenderer.invoke('unwatch-directory'),
 
   // 笔记操作

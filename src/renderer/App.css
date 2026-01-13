@@ -82,6 +82,28 @@ body {
   background-color: #4fa8c7;
 }
 
+.config-item .status {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.config-item .status.watching {
+  background-color: #52c41a;
+  color: white;
+}
+
+.config-item .status.idle {
+  background-color: #faad14;
+  color: white;
+}
+
+.config-item .last-update {
+  color: #666;
+  font-size: 14px;
+}
+
 .loading {
   display: flex;
   justify-content: center;

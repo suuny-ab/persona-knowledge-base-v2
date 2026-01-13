@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { configManager } from './config/ConfigManager';
+import { fileWatcher } from './fileWatcher/FileWatcher';
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  console.log('Creating window...');
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -15,15 +17,26 @@ function createWindow() {
     },
   });
 
-  // 加载打包后的 HTML 文件
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // 设置文件监听器的主窗口引用
+  fileWatcher.setMainWindow(mainWindow);
 
+  // 加载打包后的 HTML 文件
+  console.log('Loading HTML file...');
+  mainWindow.loadFile(path.join(__dirname, 'index.html'))
+    .then(() => console.log('HTML file loaded successfully'))
+    .catch((err) => console.error('Failed to load HTML:', err));
+
+  // 窗口关闭时停止监听
   mainWindow.on('closed', () => {
+    fileWatcher.stopWatching();
     mainWindow = null;
   });
+
+  console.log('Window created');
 }
 
 app.whenReady().then(() => {
+  console.log('App is ready');
   createWindow();
 
   app.on('activate', () => {
