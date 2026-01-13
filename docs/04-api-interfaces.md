@@ -29,7 +29,9 @@
 |---------|------|--------|------|
 | `get-note-list` | `GetNoteListParams` | `Note[]` | 获取笔记列表 |
 | `read-note` | `ReadNoteParams` | `string` | 读取笔记内容 |
-| `save-note` | `SaveNoteParams` | `SaveNoteResult` | 保存笔记 |
+| `save-new-note` | `SaveNewNoteParams` | `SaveNewNoteResult` | 保存 AI 生成的新笔记 |
+| `watch-directory` | `WatchDirectoryParams` | `void` | 监听 Obsidian 目录变化 |
+| `unwatch-directory` | - | `void` | 停止监听目录 |
 | `select-directory` | - | `string` | 选择文件夹 |
 | `get-config` | - | `Config` | 获取配置 |
 | `set-config` | `Config` | `void` | 保存配置 |
@@ -38,7 +40,7 @@
 
 | 接口名称 | 参数 | 触发方 | 说明 |
 |---------|------|--------|------|
-| `note-updated` | `NoteUpdatedEvent` | 主进程 | 通知笔记已更新 |
+| `note-updated` | `NoteUpdatedEvent` | 主进程 | 通知笔记已更新（Obsidian 编辑或新笔记保存） |
 
 ---
 
@@ -152,28 +154,38 @@ const content = await ipcRenderer.invoke('read-note', {
 
 ---
 
-### 3. save-note
+### 3. save-new-note
 
-**功能**：保存笔记内容到指定文件
+**功能**：保存 AI 生成的新笔记到 Obsidian 目录（F2/F3 使用）
+
+**用途说明**：
+- 用户在 Obsidian 编辑笔记，不在应用内编辑
+- 此接口仅用于保存 AI 生成的内容：
+  - F2：整理后的结构化文档
+  - F3：自动归档的经验笔记
 
 **通信模式**：invoke/handle
 
 **参数类型**：
 
 ```typescript
-interface SaveNoteParams {
-  filePath: string;          // 笔记文件完整路径
-  content: string;           // 笔记内容（Markdown）
+interface SaveNewNoteParams {
+  fileName: string;           // 文件名（如：'React学习笔记.md'）
+  content: string;            // 笔记内容（Markdown）
+  subfolder?: string;        // 子目录路径（如：'学习笔记/React'），可选
+  tags?: string[];           // 标签（会添加到笔记元数据），可选
+  category?: string;         // 分类，可选
 };
 ```
 
 **返回类型**：
 
 ```typescript
-interface SaveNoteResult {
+interface SaveNewNoteResult {
   success: boolean;          // 是否成功
   note?: Note;               // 保存后的笔记信息
-  error?: string;            // 错误信息（如果失败）
+  filePath?: string;        // 完整文件路径
+  error?: string;           // 错误信息（如果失败）
 }
 ```
 
@@ -185,26 +197,133 @@ interface SaveNoteResult {
   code: 'PERMISSION_DENIED';    // 权限不足
   code: 'WRITE_ERROR';          // 写入失败
   code: 'INVALID_PATH';         // 路径无效
+  code: 'FILE_EXISTS';          // 文件已存在
 }
 ```
 
 **示例**：
 
 ```typescript
-// 渲染进程调用
-const result = await ipcRenderer.invoke('save-note', {
-  filePath: 'C:/Users/xxx/Obsidian/Notes/React.md',
-  content: '# React 学习笔记\n\n## 基础概念...'
+// 渲染进程调用 - F2 碎片信息整理
+const result = await ipcRenderer.invoke('save-new-note', {
+  fileName: 'React学习笔记-整理版.md',
+  content: '# React 学习笔记\n\n## 核心概念\n\n...',
+  subfolder: '学习笔记/前端',
+  tags: ['React', '前端', '学习'],
+  category: '前端开发'
 });
 
 if (result.success) {
-  console.log('保存成功', result.note);
+  console.log('整理的笔记已保存：', result.filePath);
 } else {
   console.error('保存失败', result.error);
 }
 ```
 
-**行为**：保存成功后，主进程会发送 `note-updated` 事件通知所有渲染进程。
+**行为**：
+- 保存成功后，主进程会发送 `note-updated` 事件通知所有渲染进程
+- 如果指定 `subfolder`，会自动创建子目录
+- 自动添加 Obsidian 元数据格式（frontmatter）
+
+---
+
+### 4. watch-directory
+
+**功能**：监听 Obsidian 目录的文件变化，自动通知渲染进程更新
+
+**用途说明**：
+- 用户在 Obsidian 编辑笔记后，应用自动刷新笔记列表
+- 无需手动点击刷新
+
+**通信模式**：invoke/handle
+
+**参数类型**：
+
+```typescript
+interface WatchDirectoryParams {
+  path: string;              // Obsidian 目录路径
+  debounceMs?: number;      // 防抖时间（毫秒），默认 500
+};
+```
+
+**返回类型**：`void`
+
+**错误处理**：
+
+```typescript
+// 可能的错误
+{
+  code: 'DIRECTORY_NOT_FOUND';    // 目录不存在
+  code: 'ALREADY_WATCHING';      // 已在监听
+}
+```
+
+**示例**：
+
+```typescript
+// 渲染进程调用 - 开始监听
+await ipcRenderer.invoke('watch-directory', {
+  path: 'C:/Users/xxx/Obsidian/Notes',
+  debounceMs: 300
+});
+
+// 渲染进程监听文件变化
+ipcRenderer.on('note-updated', (event, data) => {
+  console.log('检测到文件变化：', data);
+  refreshNoteList(); // 刷新笔记列表
+});
+```
+
+**实现细节**：
+
+```typescript
+// 主进程实现
+import { watch } from 'fs';
+
+let watcher: FSWatcher | null = null;
+let debounceTimer: NodeJS.Timeout | null = null;
+
+ipcMain.handle('watch-directory', async (event, { path, debounceMs = 500 }) => {
+  if (watcher) {
+    throw new Error('已在监听其他目录');
+  }
+  
+  watcher = watch(path, (eventType, filename) => {
+    if (!filename || !filename.endsWith('.md')) return;
+    
+    // 防抖处理
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      mainWindow.webContents.send('note-updated', {
+        filename,
+        eventType: eventType === 'change' ? 'updated' : eventType
+      });
+    }, debounceMs);
+  });
+});
+```
+
+---
+
+### 5. unwatch-directory
+
+**功能**：停止监听目录
+
+**通信模式**：invoke/handle
+
+**参数类型**：无
+
+**返回类型**：`void`
+
+**错误处理**：无
+
+**示例**：
+
+```typescript
+// 渲染进程调用
+await ipcRenderer.invoke('unwatch-directory');
+console.log('已停止监听目录');
+```
 
 ---
 
@@ -323,24 +442,24 @@ await ipcRenderer.invoke('set-config', {
 
 ---
 
-### 7. note-updated（单向通知）
+### 8. note-updated（单向通知）
 
-**功能**：通知渲染进程笔记已更新（文件监听或主动保存）
+**功能**：通知渲染进程笔记已更新
 
 **通信模式**：send/on
 
 **触发场景**：
-1. 主进程通过 `save-note` 保存笔记后
-2. 主进程监听到 Obsidian 目录下文件变化（可选）
+1. 用户在 Obsidian 编辑笔记 → `watch-directory` 监听到变化
+2. AI 保存新笔记 → `save-new-note` 保存后
+3. 用户在 Obsidian 删除/重命名笔记 → `watch-directory` 监听到变化
 
 **参数类型**：
 
 ```typescript
 interface NoteUpdatedEvent {
-  noteId: string;              // 笔记ID
-  filePath: string;            // 文件路径
-  eventType: 'created' | 'updated' | 'deleted';  // 事件类型
-  updatedAt: Date;             // 更新时间
+  filename: string;            // 文件名
+  eventType: 'created' | 'updated' | 'deleted' | 'renamed';  // 事件类型
+  timestamp: Date;             // 时间戳
 }
 ```
 
@@ -350,13 +469,24 @@ interface NoteUpdatedEvent {
 // 渲染进程监听
 ipcRenderer.on('note-updated', (event, data) => {
   console.log('笔记已更新：', data);
-  
-  if (data.eventType === 'updated') {
-    // 刷新笔记列表
-    refreshNotes();
-  } else if (data.eventType === 'deleted') {
-    // 从列表中移除
-    removeNote(data.noteId);
+
+  switch (data.eventType) {
+    case 'created':
+      // 新笔记，添加到列表
+      addNoteToList(data.filename);
+      break;
+    case 'updated':
+      // 笔记更新，刷新列表或更新内容
+      refreshNoteList();
+      break;
+    case 'deleted':
+      // 笔记删除，从列表中移除
+      removeNoteFromList(data.filename);
+      break;
+    case 'renamed':
+      // 笔记重命名，更新列表
+      updateNoteInList(data.filename);
+      break;
   }
 });
 ```
@@ -385,11 +515,12 @@ ipcRenderer.on('note-updated', (event, data) => {
 
 | 接口名称 | 用途 | 优先级 |
 |---------|------|--------|
-| `delete-note` | 删除笔记 | P2 |
-| `search-notes` | 全文搜索（F1 智能检索） | P0 |
-| `analyze-structure` | 分析知识库结构（F4） | P1 |
-| `export-notes` | 导出笔记 | P2 |
-| `import-notes` | 导入笔记 | P2 |
+| `vector-search` | 向量检索（F1 智能检索核心） | P0 |
+| `ai-organize` | AI 碎片信息整理（F2） | P1 |
+| `ai-summarize-conversation` | AI 对话总结归档（F3） | P1 |
+| `analyze-structure` | 分析知识库结构（F4） | P2 |
+| `export-notes` | 导出笔记 | P3 |
+| `import-notes` | 导入笔记 | P3 |
 
 ---
 
