@@ -330,12 +330,21 @@ Electron 主进程与渲染进程之间的通信接口：
 
 | 接口名称 | 类型 | 参数 | 返回值 | 用途 |
 |---------|------|------|--------|------|
-| `getNoteList` | invoke | `{ path: string }` | `Note[]` | 获取笔记列表 |
-| `readNote` | invoke | `{ filePath: string }` | `string` | 读取笔记内容 |
-| `saveNote` | invoke | `{ filePath: string, content: string }` | `void` | 保存笔记 |
-| `selectDirectory` | invoke | - | `string` | 选择笔记目录 |
-| `getConfig` | invoke | - | `Config` | 获取配置 |
-| `setConfig` | invoke | `{ config: Config }` | `void` | 保存配置 |
+| `get-note-list` | invoke | `{ path: string }` | `Note[]` | 获取笔记列表 |
+| `read-note` | invoke | `{ filePath: string }` | `string` | 读取笔记内容（只读） |
+| `save-new-note` | invoke | `SaveNewNoteParams` | `SaveNewNoteResult` | 保存 AI 生成的新笔记 |
+| `watch-directory` | invoke | `{ path: string, debounceMs?: number }` | `void` | 监听 Obsidian 目录变化 |
+| `unwatch-directory` | invoke | - | `void` | 停止监听目录 |
+| `select-directory` | invoke | - | `string` | 选择笔记目录 |
+| `get-config` | invoke | - | `Config` | 获取配置 |
+| `set-config` | invoke | `{ config: Config }` | `void` | 保存配置 |
+| `note-updated` | send | `NoteUpdatedEvent` | - | 通知笔记更新（Obsidian 编辑或新笔记保存） |
+
+**重要说明**：
+- ❌ **不在应用内编辑笔记**（用户在 Obsidian 编辑）
+- ✅ **只读展示笔记**（read-note）
+- ✅ **保存 AI 生成的内容**（save-new-note，F2/F3 使用）
+- ✅ **监听 Obsidian 变化**（watch-directory）
 
 ---
 
