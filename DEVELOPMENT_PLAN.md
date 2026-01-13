@@ -27,17 +27,20 @@
 
 ---
 
-### Milestone 2: 技术选型与设计
+### Milestone 2: 技术选型与设计 ✅ 已完成
 **目标**：完成技术方案和架构设计
+**完成日期**：2026-01-13
 
-- [ ] 确定产品形态（桌面应用/Obsidian插件）
-- [ ] 选择AI服务（大模型）
-- [ ] 选择技术栈（前端框架+桌面方案）
-- [ ] 设计系统架构
-- [ ] 设计数据流
-- [ ] 设计UI原型
+- [x] 确定产品形态：Electron 桌面应用
+- [x] 选择 AI 服务：DeepSeek
+- [x] 选择技术栈：Electron + React + TypeScript + LangChain + shadcn/ui
+- [x] 设计系统架构（模块化架构）
+- [x] 设计数据流（3个核心场景）
+- [x] 设计接口（IPC 通信）
 
-**预期成果**：`docs/02-architecture-design.md` - 架构设计文档
+**产出文档**：
+- `docs/02-tech-selection.md` - 技术选型文档
+- `docs/03-architecture-design.md` - 架构设计文档
 
 ---
 
@@ -133,14 +136,22 @@
 
 ## 🎯 当前任务
 
-**正在进行**：Milestone 2 - 技术选型与设计
+**正在进行**：Milestone 3 - 项目初始化与 MVP 开发
 
-**当前阶段**：需求分析 ✅ → 技术选型 ⏳
+**当前阶段**：
+```
+需求分析 ✅ → 技术选型 ✅ → 架构设计 ✅ → 项目初始化 ⏳ → MVP开发
+```
+
+**当前里程碑**：Milestone 3 - 初始化项目框架
 
 **待完成**：
-1. 确认产品形态（桌面应用 vs Obsidian插件）
-2. 选择AI服务（大模型）
-3. 选择技术栈（前端框架+桌面方案）
+1. 初始化 Electron + React + TypeScript 项目
+2. 配置开发环境（Vite、ESLint、Prettier）
+3. 搭建基础项目结构
+4. 配置 shadcn/ui 组件库
+5. 实现基础 Electron 窗口
+6. Git 提交初始代码
 
 ---
 
