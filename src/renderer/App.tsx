@@ -21,6 +21,9 @@ declare global {
 function App() {
   const [config, setConfig] = useState<any>(null);
   const [notes, setNotes] = useState<any[]>([]);
+  const [selectedNote, setSelectedNote] = useState<any | null>(null);
+  const [noteContent, setNoteContent] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [watching, setWatching] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
@@ -32,6 +35,8 @@ function App() {
     const handleNoteUpdate = (event: any, data: any) => {
       console.log('Note updated:', data);
       setLastUpdate(new Date(data.timestamp).toLocaleString());
+      // 文件更新时重新加载笔记列表
+      loadNotes();
     };
 
     window.electronAPI.onNoteUpdated(handleNoteUpdate);
@@ -46,14 +51,35 @@ function App() {
       const configData = await window.electronAPI.getConfig();
       setConfig(configData);
 
-      // 如果有配置的目录,自动开始监听
+      // 如果有配置的目录,自动开始监听和加载笔记
       if (configData.obsidianPath) {
         await startWatching(configData.obsidianPath);
+        await loadNotes();
       }
     } catch (error) {
       console.error('Failed to load config:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadNotes = async () => {
+    try {
+      const noteList = await window.electronAPI.getNoteList();
+      setNotes(noteList);
+      console.log(`Loaded ${noteList.length} notes`);
+    } catch (error) {
+      console.error('Failed to load notes:', error);
+    }
+  };
+
+  const loadNoteContent = async (note: any) => {
+    try {
+      const content = await window.electronAPI.readNote(note.path);
+      setNoteContent(content);
+      setSelectedNote(note);
+    } catch (error) {
+      console.error('Failed to load note content:', error);
     }
   };
 
@@ -125,7 +151,83 @@ function App() {
 
         <div className="notes-section">
           <h2>笔记列表</h2>
-          <p>笔记列表将在这里显示</p>
+          <div className="notes-layout">
+            {/* 左侧笔记列表 */}
+            <div className="notes-list">
+              <div className="search-box">
+                <input
+                  type="text"
+                  placeholder="搜索笔记..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="notes-container">
+                {notes
+                  .filter(note =>
+                    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    note.content.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map(note => (
+                    <div
+                      key={note.id}
+                      className={`note-item ${selectedNote?.id === note.id ? 'active' : ''}`}
+                      onClick={() => loadNoteContent(note)}
+                    >
+                      <div className="note-title">{note.title}</div>
+                      <div className="note-meta">
+                        <span className="note-tags">
+                          {note.tags.length > 0 && (
+                            <>
+                              {note.tags.slice(0, 3).map(tag => (
+                                <span key={tag} className="tag">#{tag}</span>
+                              ))}
+                              {note.tags.length > 3 && <span className="tag">...</span>}
+                            </>
+                          )}
+                        </span>
+                        <span className="note-date">
+                          {new Date(note.modifiedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                {notes.length === 0 && (
+                  <div className="no-notes">
+                    {searchQuery ? '没有找到匹配的笔记' : '没有笔记,请选择 Obsidian 目录'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 右侧笔记内容 */}
+            <div className="note-content">
+              {selectedNote ? (
+                <>
+                  <div className="note-header">
+                    <h3>{selectedNote.title}</h3>
+                    <div className="note-actions">
+                      <button
+                        className="btn-small"
+                        onClick={() => setSelectedNote(null)}
+                      >
+                        关闭
+                      </button>
+                    </div>
+                  </div>
+                  <div className="markdown-content">
+                    {noteContent.split('\n').map((line, index) => (
+                      <p key={index}>{line || '\u00A0'}</p>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p>选择一个笔记查看内容</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     </div>

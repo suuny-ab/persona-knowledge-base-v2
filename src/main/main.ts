@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { configManager } from './config/ConfigManager';
 import { fileWatcher } from './fileWatcher/FileWatcher';
+import { noteManager } from './noteManager/NoteManager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -74,4 +75,31 @@ ipcMain.handle('select-directory', async () => {
   }
 
   return result.filePaths[0];
+});
+
+// IPC 处理器 - 笔记管理
+ipcMain.handle('get-note-list', async () => {
+  const config = configManager.getConfig();
+  if (!config.obsidianPath) {
+    return [];
+  }
+
+  const notes = noteManager.scanDirectory(config.obsidianPath);
+  console.log(`Found ${notes.length} notes`);
+  return notes;
+});
+
+ipcMain.handle('read-note', async (event, notePath: string) => {
+  const content = noteManager.readNote(notePath);
+  return content;
+});
+
+ipcMain.handle('save-new-note', async (event, noteData: any) => {
+  const config = configManager.getConfig();
+  if (!config.obsidianPath) {
+    return { success: false, message: 'No Obsidian path configured' };
+  }
+
+  const success = noteManager.saveNote(config.obsidianPath, noteData);
+  return { success };
 });
